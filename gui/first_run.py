@@ -57,15 +57,30 @@ class FirstRunWizard:
 
         tk.Label(
             self.container,
-            text="Добро пожаловать!",
+            text="Welcome! / Добро пожаловать!",
             font=("Segoe UI", 16, "bold"), fg=self.fg, bg=self.bg,
         ).pack(anchor=tk.W, pady=(0, 4))
+
+        # UI Language choice
+        lang_frame = tk.Frame(self.container, bg=self.bg)
+        lang_frame.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(lang_frame, text="Language / Язык:",
+                 font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg
+                 ).pack(side=tk.LEFT)
+        self.ui_lang_var = tk.StringVar(value="Русский")
+        for code, name in [("ru", "Русский"), ("en", "English")]:
+            tk.Radiobutton(
+                lang_frame, text=name, variable=self.ui_lang_var, value=name,
+                font=("Segoe UI", 10), fg=self.fg, bg=self.bg,
+                selectcolor="#3C3C3C", activebackground=self.bg,
+                activeforeground=self.fg,
+            ).pack(side=tk.LEFT, padx=(8, 0))
 
         tk.Label(
             self.container,
             text="Выберите качество распознавания:",
             font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg,
-        ).pack(anchor=tk.W, pady=(0, 12))
+        ).pack(anchor=tk.W, pady=(0, 8))
 
         # Device info
         device = detect_device()
@@ -137,9 +152,15 @@ class FirstRunWizard:
         quality = self.quality_var.get()
         model_name = PRESETS[quality][0]
         engine = self.engine_var.get()
+        # Save UI language
+        lang_name = self.ui_lang_var.get()
+        ui_lang = "en" if lang_name == "English" else "ru"
+        self.settings.set("ui_language", ui_lang)
         self.settings.set("model", model_name)
         self.settings.set("engine", engine)
         self.settings.save()
+        from core.i18n import set_language
+        set_language(ui_lang)
         self._show_step_2(model_name)
 
     # --- Step 2: Download model ---

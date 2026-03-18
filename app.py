@@ -69,8 +69,10 @@ class App:
         self.root = tk.Tk()
         self.root.withdraw()
 
-        # Settings & device
+        # Settings & language
         self.settings = SettingsManager()
+        from core.i18n import set_language
+        set_language(self.settings.get("ui_language", "ru"))
         device_setting = self.settings.get("device")
         if device_setting == "auto":
             self.device = detect_device()
@@ -219,12 +221,19 @@ class App:
     # === Streaming callbacks ===
 
     def _on_stream_partial(self, text: str):
-        """Append new words directly into target field."""
+        """Append new words directly into target field (if streaming enabled)."""
+        if not self.settings.get("streaming_insert", True):
+            return
         text = self.voice_commands.process(text)
-        if text:
-            self._partial_text = self.inserter.append_diff(
-                self._partial_text, text
-            )
+        # Filter garbage partials
+        if not text or len(text.strip().rstrip(".")) < 2:
+            return
+        from core.stream_recognizer import StreamRecognizer
+        if StreamRecognizer._is_hallucination(text):
+            return
+        self._partial_text = self.inserter.append_diff(
+            self._partial_text, text
+        )
 
     def _on_stream_final(self, text: str, duration: float):
         text = self.voice_commands.process(text)
@@ -334,12 +343,13 @@ class App:
     # === Menu ===
 
     def _on_menu(self, event):
+        from core.i18n import t
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="⚙  Настройки", command=self._on_settings)
-        menu.add_command(label="📋  История", command=self._on_history)
-        menu.add_command(label="📁  Файлы", command=self._on_file_transcribe)
+        menu.add_command(label=f"⚙  {t('menu_settings')}", command=self._on_settings)
+        menu.add_command(label=f"📋  {t('menu_history')}", command=self._on_history)
+        menu.add_command(label=f"📁  {t('menu_files')}", command=self._on_file_transcribe)
         menu.add_separator()
-        menu.add_command(label="✕  Выход", command=self._on_exit)
+        menu.add_command(label=f"✕  {t('menu_exit')}", command=self._on_exit)
         menu.post(event.x_root, event.y_root)
 
     def _on_settings(self):

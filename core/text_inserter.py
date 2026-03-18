@@ -66,12 +66,13 @@ class TextInserter:
         pyperclip.copy(text)
 
     def append_diff(self, old_text: str, new_text: str) -> str:
-        """Only APPEND new words. Never send backspace. Never delete.
-
-        Compares old and new by words, inserts only the difference.
-        If Whisper changed earlier words — ignores, waits for final.
-        """
+        """Only APPEND new words. Never send backspace. Never delete."""
         if not new_text:
+            return old_text
+
+        # Filter out garbage (dots, ellipsis, single chars)
+        clean = new_text.strip().rstrip(".")
+        if len(clean) < 2 or clean in ("...", "..", "…"):
             return old_text
 
         if not old_text:
