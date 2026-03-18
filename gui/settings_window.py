@@ -66,7 +66,9 @@ class SettingsWindow:
         tk.Label(hdr, text=gpu_text, font=("Segoe UI", 9),
                  fg=gpu_color, bg=BG).pack(side=tk.RIGHT)
 
-        # --- Rows ---
+        # --- Распознавание ---
+        tk.Label(m, text="Распознавание", font=("Segoe UI", 9, "bold"),
+                 fg=ACCENT, bg=BG).pack(anchor=tk.W, pady=(4, 4))
 
         # Engine
         self._engine_values = [e for e in VALID_VALUES["engine"] if installed.get(e)]
@@ -105,6 +107,10 @@ class SettingsWindow:
             m, "Язык", list(VALID_VALUES["language"]),
             self.settings.get("language"), "language")
 
+        # --- Управление ---
+        tk.Label(m, text="Управление", font=("Segoe UI", 9, "bold"),
+                 fg=ACCENT, bg=BG).pack(anchor=tk.W, pady=(8, 4))
+
         # Hotkey
         hk = tk.Frame(m, bg=ROW_BG, padx=8, pady=5)
         hk.pack(fill=tk.X, pady=2)
@@ -128,9 +134,9 @@ class SettingsWindow:
         self.mic_var = self._row_select(m, "Микрофон", mics,
                                          "По умолчанию", "mic")
 
-        # Toggles
-        sep = tk.Frame(m, height=1, bg="#333333")
-        sep.pack(fill=tk.X, pady=6)
+        # --- Обработка ---
+        tk.Label(m, text="Обработка", font=("Segoe UI", 9, "bold"),
+                 fg=ACCENT, bg=BG).pack(anchor=tk.W, pady=(8, 4))
 
         self.filler_var = tk.BooleanVar(value=self.settings.get("remove_filler_words"))
         self._row_check(m, "Удалять слова-паразиты", self.filler_var, "filler")
@@ -201,8 +207,8 @@ class SettingsWindow:
             Tooltip(lbl, TIPS[key])
 
     def _row_select(self, parent, label, values, current, tip_key):
-        row = tk.Frame(parent, bg=ROW_BG, padx=8, pady=4)
-        row.pack(fill=tk.X, pady=2)
+        row = tk.Frame(parent, bg=ROW_BG, padx=8, pady=6)
+        row.pack(fill=tk.X, pady=3)
         tk.Label(row, text=label, font=("Segoe UI", 10),
                  fg=FG, bg=ROW_BG).pack(side=tk.LEFT)
         self._tip(row, tip_key)
@@ -218,8 +224,8 @@ class SettingsWindow:
 
     def _row_check(self, parent, label, var, tip_key,
                    enabled=True, note=""):
-        row = tk.Frame(parent, bg=ROW_BG, padx=8, pady=4)
-        row.pack(fill=tk.X, pady=2)
+        row = tk.Frame(parent, bg=ROW_BG, padx=8, pady=6)
+        row.pack(fill=tk.X, pady=3)
         tk.Label(row, text=label, font=("Segoe UI", 10),
                  fg=FG, bg=ROW_BG).pack(side=tk.LEFT)
         self._tip(row, tip_key)
