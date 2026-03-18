@@ -20,16 +20,25 @@ except Exception:
     except Exception:
         pass
 
-# Suppress HuggingFace warnings on Windows
+# Determine app base directory (next to exe or app.py)
+if getattr(sys, 'frozen', False):
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Force ALL data into app folder
+os.environ["HF_HUB_CACHE"] = os.path.join(APP_DIR, "models")
+os.environ["HF_HOME"] = os.path.join(APP_DIR, "models")
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 os.environ["HF_HUB_DISABLE_EXPERIMENTAL_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_XET_WARNING"] = "1"
 
-# Suppress "unauthenticated requests" warning
+# Suppress warnings
 import warnings
 warnings.filterwarnings("ignore", message=".*unauthenticated.*")
 warnings.filterwarnings("ignore", message=".*hf_xet.*")
+warnings.filterwarnings("ignore", message=".*symlink.*")
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(__file__))

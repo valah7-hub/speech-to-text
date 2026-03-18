@@ -18,34 +18,28 @@ MODEL_BYTES = {
 
 
 def _get_cache_size(model_name: str) -> int:
-    """Get current download size in bytes.
-
-    Checks local models/ folder AND HF temp cache (for in-progress downloads).
-    """
+    """Get current download size in bytes — scans entire models/ folder."""
     from core.gpu_detector import get_models_dir
 
-    def _dir_bytes(path):
-        if not os.path.exists(path):
-            return 0
-        total = 0
-        for dp, dn, fns in os.walk(path):
-            for f in fns:
-                try:
-                    total += os.path.getsize(os.path.join(dp, f))
-                except OSError:
-                    pass
-        return total
+    models_dir = get_models_dir()
+    if not os.path.exists(models_dir):
+        return 0
 
-    # Check local models/ folder
-    local = os.path.join(get_models_dir(), f"faster-whisper-{model_name}")
-    sz = _dir_bytes(local)
-    if sz > 0:
-        return sz
-
-    # During download, files are in HF cache temp — check there for progress
-    hf = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"),
-                      f"models--Systran--faster-whisper-{model_name}")
-    return _dir_bytes(hf)
+    # HF cache stores as models--Systran--faster-whisper-{name}
+    # faster-whisper download_root stores as faster-whisper-{name}
+    # Scan for both patterns
+    total = 0
+    for pattern in [f"faster-whisper-{model_name}",
+                    f"models--Systran--faster-whisper-{model_name}"]:
+        path = os.path.join(models_dir, pattern)
+        if os.path.exists(path):
+            for dp, dn, fns in os.walk(path):
+                for f in fns:
+                    try:
+                        total += os.path.getsize(os.path.join(dp, f))
+                    except OSError:
+                        pass
+    return total
 
 
 class DownloadWindow:

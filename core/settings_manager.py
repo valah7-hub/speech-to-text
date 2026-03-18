@@ -5,8 +5,8 @@ import os
 
 DEFAULTS = {
     "engine": "faster-whisper",
-    "device": "auto",
-    "model": "base",
+    "device": "cpu",
+    "model": "medium",
     "language": "ru",
     "hotkey": "ctrl+space",
     "remove_filler_words": True,
@@ -39,8 +39,12 @@ VALID_VALUES = {
 class SettingsManager:
     def __init__(self, path: str = None):
         if path is None:
-            path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                "settings.json")
+            import sys
+            if getattr(sys, 'frozen', False):
+                base = os.path.dirname(sys.executable)
+            else:
+                base = os.path.dirname(os.path.dirname(__file__))
+            path = os.path.join(base, "settings.json")
         self.path = path
         self._data: dict = {}
         self.load()

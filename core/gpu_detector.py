@@ -126,8 +126,14 @@ def get_downloaded_models() -> dict[str, int]:
     downloaded = {}
 
     for model_name in MODEL_SIZES:
-        local_path = os.path.join(models_dir, f"faster-whisper-{model_name}")
-        downloaded[model_name] = _dir_size_mb(local_path)
+        mb = 0
+        for pattern in [f"faster-whisper-{model_name}",
+                        f"models--Systran--faster-whisper-{model_name}"]:
+            p = os.path.join(models_dir, pattern)
+            s = _dir_size_mb(p)
+            if s > mb:
+                mb = s
+        downloaded[model_name] = mb
 
     return downloaded
 

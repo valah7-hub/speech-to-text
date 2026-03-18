@@ -190,7 +190,98 @@ class FirstRunWizard:
         engine = self.engine_var.get()
         self.settings.set("model", model_name)
         self.settings.set("engine", engine)
+        self.settings.set("device", "cpu")  # CPU by default
         self.settings.set("ui_language", self._lang)
+        self.settings.save()
+
+        # Check if NVIDIA GPU is available — offer GPU mode
+        has_gpu = self._check_nvidia()
+        if has_gpu:
+            self._show_gpu_offer(model_name)
+        else:
+            self._show_step_2(model_name)
+
+    def _check_nvidia(self) -> bool:
+        """Check if NVIDIA GPU is present."""
+        try:
+            import subprocess
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = 0
+            r = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=5, startupinfo=si,
+            )
+            return r.returncode == 0 and bool(r.stdout.strip())
+        except Exception:
+            return False
+
+    def _show_gpu_offer(self, model_name):
+        """Offer GPU acceleration if NVIDIA detected."""
+        self._clear()
+
+        title = "GPU Detected!" if self._lang == "en" else "Обнаружена видеокарта!"
+        tk.Label(
+            self.container, text=title,
+            font=("Segoe UI", 14, "bold"), fg="#44DD44", bg=self.bg,
+        ).pack(anchor=tk.W, pady=(0, 8))
+
+        try:
+            import subprocess
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = 0
+            r = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=5, startupinfo=si,
+            )
+            gpu_name = r.stdout.strip()
+        except Exception:
+            gpu_name = "NVIDIA GPU"
+
+        tk.Label(
+            self.container, text=gpu_name,
+            font=("Segoe UI", 11), fg=self.fg, bg=self.bg,
+        ).pack(anchor=tk.W, pady=(0, 12))
+
+        desc = ("GPU acceleration makes recognition 3-5x faster.\n"
+                "Requires CUDA Toolkit installed on your system.\n\n"
+                "Use GPU?"
+                if self._lang == "en"
+                else "GPU ускоряет распознавание в 3-5 раз.\n"
+                     "Требуется установленный CUDA Toolkit.\n\n"
+                     "Использовать GPU?")
+        tk.Label(
+            self.container, text=desc,
+            font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg,
+            justify=tk.LEFT,
+        ).pack(anchor=tk.W, pady=(0, 16))
+
+        btn_frame = tk.Frame(self.container, bg=self.bg)
+        btn_frame.pack(fill=tk.X)
+
+        # Yes — GPU
+        yes_text = "Yes, use GPU" if self._lang == "en" else "Да, использовать GPU"
+        tk.Button(
+            btn_frame, text=yes_text,
+            font=("Segoe UI", 12, "bold"),
+            bg="#3C6E3C", fg="white", relief=tk.FLAT,
+            activebackground="#4A8A4A", cursor="hand2", pady=6,
+            command=lambda: self._set_device_and_continue("cuda", model_name),
+        ).pack(fill=tk.X, pady=(0, 6))
+
+        # No — CPU
+        no_text = "No, use CPU" if self._lang == "en" else "Нет, использовать CPU"
+        tk.Button(
+            btn_frame, text=no_text,
+            font=("Segoe UI", 10),
+            bg="#3C3C3C", fg="#AAAAAA", relief=tk.FLAT,
+            cursor="hand2", pady=4,
+            command=lambda: self._set_device_and_continue("cpu", model_name),
+        ).pack(fill=tk.X)
+
+    def _set_device_and_continue(self, device, model_name):
+        self.settings.set("device", device)
         self.settings.save()
         self._show_step_2(model_name)
 
