@@ -44,7 +44,7 @@ class FirstRunWizard:
         self.win.title("Speech-to-Text")
         self.win.attributes("-topmost", True)
         self.win.resizable(False, False)
-        self.win.geometry("500x520")
+        self.win.geometry("500x580")
         self.win.protocol("WM_DELETE_WINDOW", self._skip)
 
         self.bg = "#2B2B2B"
@@ -99,23 +99,30 @@ class FirstRunWizard:
         )
         self._lbl_engine.pack(anchor=tk.W, pady=(4, 4))
 
-        installed = get_installed_engines()
-        available = {k: v for k, v in installed.items() if v}
-        self.engine_var = tk.StringVar(value="faster-whisper")
-
+        # Show all known engines, mark installed ones
         ENGINE_LABELS = {
-            "faster-whisper": "Faster-Whisper — " + ("fast, recommended" if self._lang == "en" else "быстрый, рекомендуется"),
-            "whisper": "Whisper — " + ("original OpenAI" if self._lang == "en" else "оригинальный от OpenAI"),
+            "faster-whisper": ("Faster-Whisper", "fast, recommended" if self._lang == "en" else "быстрый, рекомендуется"),
+            "whisper": ("Whisper", "original OpenAI" if self._lang == "en" else "оригинальный от OpenAI"),
         }
+        try:
+            installed = get_installed_engines()
+        except Exception:
+            installed = {"faster-whisper": True, "whisper": False}
+
+        self.engine_var = tk.StringVar(value="faster-whisper")
         self._engine_rbs = []
-        for key in available:
-            label = ENGINE_LABELS.get(key, key)
+        for key, (name, desc) in ENGINE_LABELS.items():
+            is_ok = installed.get(key, False)
+            mark = " ✓" if is_ok else (" ✗ " + ("not installed" if self._lang == "en" else "не установлен"))
+            label = f"{name} — {desc}{mark}"
             rb = tk.Radiobutton(
                 self.container, text=label,
                 variable=self.engine_var, value=key,
-                font=("Segoe UI", 9), fg=self.fg, bg=self.bg,
+                font=("Segoe UI", 9), fg=self.fg if is_ok else "#666666",
+                bg=self.bg,
                 selectcolor="#3C3C3C", activebackground=self.bg,
                 activeforeground=self.fg,
+                state=tk.NORMAL if is_ok else tk.DISABLED,
             )
             rb.pack(anchor=tk.W, pady=1)
             self._engine_rbs.append(rb)
@@ -157,16 +164,17 @@ class FirstRunWizard:
             rb.pack(anchor=tk.W, pady=1)
             self._model_rbs.append(rb)
 
-        # Next button
+        # Next button — big and visible
         self._btn_next = tk.Button(
             self.container,
-            text="Next →" if self._lang == "en" else "Далее →",
-            font=("Segoe UI", 11),
-            bg="#3C6E3C", fg=self.fg, relief=tk.FLAT,
+            text="  Next →  " if self._lang == "en" else "  Далее →  ",
+            font=("Segoe UI", 12, "bold"),
+            bg="#3C6E3C", fg="white", relief=tk.FLAT,
             activebackground="#4A8A4A", cursor="hand2",
+            padx=24, pady=6,
             command=self._on_step1_next,
         )
-        self._btn_next.pack(anchor=tk.E, pady=(10, 0))
+        self._btn_next.pack(anchor=tk.E, pady=(14, 0))
 
     def _t_engine_title(self):
         return "Engine:" if self._lang == "en" else "Движок:"
@@ -272,14 +280,15 @@ class FirstRunWizard:
         done = "Model loaded!" if self._lang == "en" else "Модель загружена!"
         self.lbl_dl_status.configure(text=done, fg="#44FF44")
 
-        # Show "Next" button
-        next_text = "Next →" if self._lang == "en" else "Далее →"
+        # Show "Next" button — big and visible
+        next_text = "  Next →  " if self._lang == "en" else "  Далее →  "
         tk.Button(
-            self.container, text=next_text, font=("Segoe UI", 11),
-            bg="#3C6E3C", fg=self.fg, relief=tk.FLAT,
+            self.container, text=next_text, font=("Segoe UI", 12, "bold"),
+            bg="#3C6E3C", fg="white", relief=tk.FLAT,
             activebackground="#4A8A4A", cursor="hand2",
+            padx=24, pady=6,
             command=self._show_step_3,
-        ).pack(anchor=tk.E, pady=(12, 0))
+        ).pack(anchor=tk.E, pady=(14, 0))
 
     def _on_model_error(self, error: str):
         self._dl_polling = False
