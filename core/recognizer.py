@@ -110,7 +110,13 @@ def load_model(engine: str, model_name: str, device: str,
     Returns the raw model object (not wrapped in a recognizer).
     """
     if engine == "whisper":
-        import whisper
+        try:
+            import whisper
+        except ImportError:
+            raise ImportError(
+                "openai-whisper не установлен. Используйте faster-whisper "
+                "или установите: pip install openai-whisper"
+            )
         return whisper.load_model(model_name, device=device)
     elif engine == "faster-whisper":
         from faster_whisper import WhisperModel

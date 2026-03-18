@@ -333,6 +333,8 @@ class FirstRunWizard:
         self.lbl_test_result.pack(fill=tk.X, pady=(0, 12))
 
         self._recorder = AudioRecorder()
+        self._testing = False
+        self._model_cache = None
 
         # Buttons
         btn_frame = tk.Frame(self.container, bg=self.bg)
@@ -354,20 +356,40 @@ class FirstRunWizard:
         ).pack(side=tk.RIGHT, padx=(0, 8))
 
     def _test_start(self, event):
+        if self._testing:
+            return  # Already recording/transcribing
+        self._testing = True
         rec_text = "Recording..." if self._lang == "en" else "Запись..."
         self.btn_test.configure(text=rec_text, bg="#5C2020")
-        self._recorder.start()
+        try:
+            self._recorder = AudioRecorder()  # Fresh recorder each time
+            self._recorder.start()
+        except Exception as e:
+            self._testing = False
+            self.lbl_test_result.configure(
+                text=f"Mic error: {e}", fg="#FF6666")
+            self.btn_test.configure(
+                text="Hold to test" if self._lang == "en" else "Удерживайте для теста",
+                bg="#3C3C3C")
 
     def _test_stop(self, event):
+        if not self._testing:
+            return
         btn_text = "Hold to test" if self._lang == "en" else "Удерживайте для теста"
         self.btn_test.configure(text=btn_text, bg="#3C3C3C")
-        audio = self._recorder.stop()
-        duration = len(audio) / 16000
 
+        try:
+            audio = self._recorder.stop()
+        except Exception:
+            self._testing = False
+            return
+
+        duration = len(audio) / 16000
         if duration < 0.5:
             msg = "Too short. Try again." if self._lang == "en" \
                 else "Слишком короткая запись. Попробуйте ещё раз."
             self.lbl_test_result.configure(text=msg, fg="#FF6666")
+            self._testing = False
             return
 
         proc_text = "Recognizing..." if self._lang == "en" else "Распознаю..."
@@ -381,8 +403,15 @@ class FirstRunWizard:
                 from core.recognizer import load_model, create_recognizer
                 from core.gpu_detector import get_compute_type
                 compute_type = get_compute_type(device)
-                model = load_model(engine, model_name, device, compute_type)
-                rec = create_recognizer(engine, model)
+
+                # Cache model to avoid reloading each test
+                if self._model_cache is None:
+                    self._model_cache = (
+                        load_model(engine, model_name, device, compute_type),
+                        engine
+                    )
+                model_obj, eng = self._model_cache
+                rec = create_recognizer(eng, model_obj, device)
                 text = rec.transcribe(audio, language="ru")
                 if text:
                     self.win.after(0, self.lbl_test_result.configure,
@@ -393,8 +422,16 @@ class FirstRunWizard:
                     self.win.after(0, self.lbl_test_result.configure,
                                    {"text": msg, "fg": "#FF6666"})
             except Exception as e:
+                err = str(e)
+                # Friendly message for missing torch
+                if "torch" in err.lower() or "No module named" in err:
+                    err = ("Engine requires PyTorch. Use faster-whisper instead."
+                           if self._lang == "en"
+                           else "Движок требует PyTorch. Используйте faster-whisper.")
                 self.win.after(0, self.lbl_test_result.configure,
-                               {"text": f"Error: {e}", "fg": "#FF6666"})
+                               {"text": err, "fg": "#FF6666"})
+            finally:
+                self._testing = False
 
         threading.Thread(target=transcribe, daemon=True).start()
 
