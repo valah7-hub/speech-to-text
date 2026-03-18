@@ -118,27 +118,16 @@ def _dir_size_mb(path: str) -> int:
 
 
 def get_downloaded_models() -> dict[str, int]:
-    """Check which models are already downloaded.
+    """Check which models are downloaded in local models/ folder.
 
-    Checks both local models/ folder and HuggingFace cache.
     Returns dict: model_name -> size_in_mb (0 if not downloaded).
     """
     models_dir = get_models_dir()
-    hf_cache = os.path.expanduser("~/.cache/huggingface/hub")
     downloaded = {}
 
     for model_name in MODEL_SIZES:
-        # Check local models/ folder first
         local_path = os.path.join(models_dir, f"faster-whisper-{model_name}")
-        local_mb = _dir_size_mb(local_path)
-        if local_mb > 0:
-            downloaded[model_name] = local_mb
-            continue
-
-        # Fallback: check HuggingFace cache
-        hf_path = os.path.join(hf_cache, f"models--Systran--faster-whisper-{model_name}")
-        hf_mb = _dir_size_mb(hf_path)
-        downloaded[model_name] = hf_mb
+        downloaded[model_name] = _dir_size_mb(local_path)
 
     return downloaded
 

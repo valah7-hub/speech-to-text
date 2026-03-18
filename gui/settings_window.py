@@ -320,17 +320,11 @@ class SettingsWindow:
         self._build_models(get_downloaded_models())
 
     def _remove_model_files(self, name):
-        """Delete model from local models/ and HF cache."""
+        """Delete model from local models/ folder."""
         from core.gpu_detector import get_models_dir
-        # Local
         local = os.path.join(get_models_dir(), f"faster-whisper-{name}")
         if os.path.exists(local):
             shutil.rmtree(local, ignore_errors=True)
-        # HF cache
-        hf = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"),
-                          f"models--Systran--faster-whisper-{name}")
-        if os.path.exists(hf):
-            shutil.rmtree(hf, ignore_errors=True)
 
     def _del_model(self, name):
         from tkinter import messagebox
