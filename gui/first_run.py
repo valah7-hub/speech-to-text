@@ -38,6 +38,7 @@ class FirstRunWizard:
                  on_complete=None):
         self.settings = settings
         self.on_complete = on_complete
+        self._open_settings = False
         self._lang = settings.get("ui_language") or "ru"
 
         self.win = tk.Toplevel(parent)
@@ -280,6 +281,137 @@ class FirstRunWizard:
     def _set_device(self, device):
         self.settings.set("device", device)
         self.settings.save()
+
+        if device == "cuda":
+            self._show_gpu_result()
+        else:
+            self._show_finish_screen()
+
+    def _show_gpu_result(self):
+        """Show GPU setup result — test if CUDA works."""
+        self._clear()
+
+        title = "Checking GPU..." if self._lang == "en" else "Проверка GPU..."
+        lbl_title = tk.Label(
+            self.container, text=title,
+            font=("Segoe UI", 14, "bold"), fg=self.fg, bg=self.bg,
+        )
+        lbl_title.pack(anchor=tk.W, pady=(0, 12))
+
+        lbl_status = tk.Label(
+            self.container, text="",
+            font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg,
+            justify=tk.LEFT, wraplength=480,
+        )
+        lbl_status.pack(anchor=tk.W, pady=(0, 12))
+
+        def check():
+            try:
+                from core.recognizer import load_model
+                from core.gpu_detector import get_compute_type
+                engine = self.settings.get("engine")
+                model_name = self.settings.get("model")
+                compute_type = get_compute_type("cuda")
+                load_model(engine, model_name, "cuda", compute_type)
+                # Success
+                self.win.after(0, self._gpu_check_done, True, "")
+            except Exception as e:
+                self.win.after(0, self._gpu_check_done, False, str(e))
+
+        self._gpu_lbl_title = lbl_title
+        self._gpu_lbl_status = lbl_status
+        import threading
+        threading.Thread(target=check, daemon=True).start()
+
+    def _gpu_check_done(self, success, error):
+        if success:
+            self._gpu_lbl_title.configure(
+                text="GPU works!" if self._lang == "en" else "GPU работает!",
+                fg="#44DD44")
+            msg = ("GPU acceleration enabled. Recognition will be 3-5x faster."
+                   if self._lang == "en"
+                   else "GPU ускорение включено. Распознавание будет в 3-5 раз быстрее.")
+            self._gpu_lbl_status.configure(text=msg, fg="#AAAAAA")
+        else:
+            self._gpu_lbl_title.configure(
+                text="GPU unavailable" if self._lang == "en" else "GPU недоступен",
+                fg="#FFAA44")
+            if self._lang == "en":
+                msg = (f"Error: {error}\n\n"
+                       "CUDA Toolkit not installed. Using CPU instead.\n"
+                       "Install CUDA Toolkit from nvidia.com for GPU support.\n"
+                       "You can switch to GPU later in Settings.")
+            else:
+                msg = (f"Ошибка: {error}\n\n"
+                       "CUDA Toolkit не установлен. Будет использован CPU.\n"
+                       "Установите CUDA Toolkit с nvidia.com для поддержки GPU.\n"
+                       "Переключиться на GPU можно позже в Настройках.")
+            self._gpu_lbl_status.configure(text=msg, fg="#AAAAAA")
+            self.settings.set("device", "cpu")
+            self.settings.save()
+
+        btn_text = "Open Settings" if self._lang == "en" else "Открыть Настройки"
+        tk.Button(
+            self.container, text=btn_text,
+            font=("Segoe UI", 12, "bold"),
+            bg="#3C6E3C", fg="white", relief=tk.FLAT,
+            activebackground="#4A8A4A", cursor="hand2", pady=8,
+            command=self._done_and_open_settings,
+        ).pack(fill=tk.X, pady=(16, 6))
+
+        done_text = "Done" if self._lang == "en" else "Готово"
+        tk.Button(
+            self.container, text=done_text,
+            font=("Segoe UI", 10),
+            bg="#3C3C3C", fg="#AAAAAA", relief=tk.FLAT,
+            cursor="hand2", pady=4,
+            command=self._done,
+        ).pack(fill=tk.X)
+
+    def _show_finish_screen(self):
+        """Final screen — CPU selected, offer to open settings."""
+        self._clear()
+
+        title = "Setup complete!" if self._lang == "en" else "Настройка завершена!"
+        tk.Label(
+            self.container, text=title,
+            font=("Segoe UI", 14, "bold"), fg="#44DD44", bg=self.bg,
+        ).pack(anchor=tk.W, pady=(0, 12))
+
+        if self._lang == "en":
+            msg = ("The app is ready to use.\n\n"
+                   "Hold Ctrl+Space to record → release to insert text.\n"
+                   "Right-click the indicator for Settings.")
+        else:
+            msg = ("Приложение готово к работе.\n\n"
+                   "Зажмите Ctrl+Space для записи → отпустите для вставки.\n"
+                   "Правый клик по индикатору → Настройки.")
+        tk.Label(
+            self.container, text=msg,
+            font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg,
+            justify=tk.LEFT,
+        ).pack(anchor=tk.W, pady=(0, 16))
+
+        btn_text = "Open Settings" if self._lang == "en" else "Открыть Настройки"
+        tk.Button(
+            self.container, text=btn_text,
+            font=("Segoe UI", 12, "bold"),
+            bg="#3C6E3C", fg="white", relief=tk.FLAT,
+            activebackground="#4A8A4A", cursor="hand2", pady=8,
+            command=self._done_and_open_settings,
+        ).pack(fill=tk.X, pady=(0, 6))
+
+        done_text = "Start" if self._lang == "en" else "Начать"
+        tk.Button(
+            self.container, text=done_text,
+            font=("Segoe UI", 10),
+            bg="#3C3C3C", fg="#AAAAAA", relief=tk.FLAT,
+            cursor="hand2", pady=4,
+            command=self._done,
+        ).pack(fill=tk.X)
+
+    def _done_and_open_settings(self):
+        self._open_settings = True
         self._done()
 
     # ---- Step 2: Download model ----
@@ -553,9 +685,10 @@ class FirstRunWizard:
             self._done()
 
     def _done(self):
+        open_settings = self._open_settings
         self.win.destroy()
         if self.on_complete:
-            self.on_complete()
+            self.on_complete(open_settings=open_settings)
 
     def _skip(self):
         self.win.destroy()

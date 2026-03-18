@@ -545,12 +545,14 @@ class App:
         if not os.path.exists(marker):
             from gui.first_run import FirstRunWizard
 
-            def on_complete():
+            def on_complete(open_settings=False):
                 with open(marker, "w") as f:
                     f.write("done")
                 self.settings.load()
                 self._load_current_model()
                 self._register_hotkey()
+                if open_settings:
+                    self.root.after(500, self._on_settings)
 
             FirstRunWizard(self.root, self.settings, on_complete=on_complete)
         else:
