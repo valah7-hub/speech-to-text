@@ -3,20 +3,32 @@
 import tkinter as tk
 from tkinter import ttk
 import threading
+import os
+import sys
 
-from core.gpu_detector import detect_device, get_recommended_model
+from core.gpu_detector import detect_device, get_recommended_model, get_installed_engines
 from core.settings_manager import SettingsManager
 from core.audio_recorder import AudioRecorder
+from core.i18n import t, set_language
 
 
-# Quality presets: label -> (model, description)
-PRESETS = {
-    "fast": ("tiny", "Быстрое — менее точное (~75 MB)"),
-    "standard": ("base", "Стандартное — хороший баланс (~150 MB)"),
-    "good": ("small", "Хорошее — точнее, медленнее (~500 MB)"),
-    "high": ("medium", "Высокое — точное, нужен GPU (~1.5 GB)"),
-    "max": ("large-v3", "Максимальное — лучшее качество (~3 GB)"),
-}
+# Quality presets: key -> (model, size_mb)
+PRESETS = [
+    ("tiny", 75),
+    ("base", 150),
+    ("small", 500),
+    ("medium", 1500),
+    ("large-v3", 3000),
+]
+
+
+def _get_models_dir():
+    """Models stored next to exe / app.py, not in ~/.cache."""
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, "models")
 
 
 class FirstRunWizard:
@@ -26,21 +38,19 @@ class FirstRunWizard:
                  on_complete=None):
         self.settings = settings
         self.on_complete = on_complete
-        self._step = 0
+        self._lang = settings.get("ui_language") or "ru"
 
         self.win = tk.Toplevel(parent)
-        self.win.title("Speech-to-Text — Первый запуск")
+        self.win.title("Speech-to-Text")
         self.win.attributes("-topmost", True)
         self.win.resizable(False, False)
-        self.win.geometry("500x560")
-        self.win.grab_set()
+        self.win.geometry("500x520")
         self.win.protocol("WM_DELETE_WINDOW", self._skip)
 
         self.bg = "#2B2B2B"
         self.fg = "#E0E0E0"
         self.win.configure(bg=self.bg)
 
-        # Main container
         self.container = tk.Frame(self.win, bg=self.bg, padx=20, pady=16)
         self.container.pack(fill=tk.BOTH, expand=True)
 
@@ -50,127 +60,146 @@ class FirstRunWizard:
         for w in self.container.winfo_children():
             w.destroy()
 
-    # --- Step 1: Quality ---
+    # ---- Step 1: Language + Engine + Model ----
 
     def _show_step_1(self):
         self._clear()
 
+        # Title
         tk.Label(
             self.container,
             text="Welcome! / Добро пожаловать!",
-            font=("Segoe UI", 16, "bold"), fg=self.fg, bg=self.bg,
-        ).pack(anchor=tk.W, pady=(0, 4))
+            font=("Segoe UI", 15, "bold"), fg=self.fg, bg=self.bg,
+        ).pack(anchor=tk.W, pady=(0, 8))
 
-        # UI Language choice
+        # Language selector
         lang_frame = tk.Frame(self.container, bg=self.bg)
         lang_frame.pack(fill=tk.X, pady=(0, 10))
         tk.Label(lang_frame, text="Language / Язык:",
                  font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg
                  ).pack(side=tk.LEFT)
-        self.ui_lang_var = tk.StringVar(value="Русский")
+
+        self.ui_lang_var = tk.StringVar(value=self._lang)
         for code, name in [("ru", "Русский"), ("en", "English")]:
             tk.Radiobutton(
-                lang_frame, text=name, variable=self.ui_lang_var, value=name,
+                lang_frame, text=name, variable=self.ui_lang_var, value=code,
                 font=("Segoe UI", 10), fg=self.fg, bg=self.bg,
                 selectcolor="#3C3C3C", activebackground=self.bg,
                 activeforeground=self.fg,
+                command=self._on_lang_change,
             ).pack(side=tk.LEFT, padx=(8, 0))
 
-        tk.Label(
-            self.container,
-            text="Выберите качество распознавания:",
-            font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg,
-        ).pack(anchor=tk.W, pady=(0, 8))
+        # Separator
+        tk.Frame(self.container, height=1, bg="#555555").pack(fill=tk.X, pady=4)
 
-        # Device info
-        device = detect_device()
-        recommended = get_recommended_model(device)
-        dev_text = f"Устройство: {device.upper()}"
-        if device == "cuda":
-            dev_text += f" | Рекомендация: {recommended}"
-        tk.Label(
-            self.container, text=dev_text,
-            font=("Segoe UI", 8), fg="#888888", bg=self.bg,
-        ).pack(anchor=tk.W, pady=(0, 10))
-
-        # Engine selection
-        tk.Label(
-            self.container, text="Движок:",
+        # Engine — only installed ones
+        self._lbl_engine = tk.Label(
+            self.container, text=self._t_engine_title(),
             font=("Segoe UI", 10, "bold"), fg=self.fg, bg=self.bg,
-        ).pack(anchor=tk.W, pady=(0, 4))
+        )
+        self._lbl_engine.pack(anchor=tk.W, pady=(4, 4))
 
-        ENGINES = {
-            "faster-whisper": "Faster-Whisper — быстрый, рекомендуется",
-            "whisper": "Whisper — оригинальный от OpenAI",
-            "whisperx": "WhisperX — точные таймкоды + alignment",
-        }
+        installed = get_installed_engines()
+        available = {k: v for k, v in installed.items() if v}
         self.engine_var = tk.StringVar(value="faster-whisper")
-        for key, desc in ENGINES.items():
+
+        ENGINE_LABELS = {
+            "faster-whisper": "Faster-Whisper — " + ("fast, recommended" if self._lang == "en" else "быстрый, рекомендуется"),
+            "whisper": "Whisper — " + ("original OpenAI" if self._lang == "en" else "оригинальный от OpenAI"),
+        }
+        self._engine_rbs = []
+        for key in available:
+            label = ENGINE_LABELS.get(key, key)
             rb = tk.Radiobutton(
-                self.container, text=desc,
+                self.container, text=label,
                 variable=self.engine_var, value=key,
                 font=("Segoe UI", 9), fg=self.fg, bg=self.bg,
                 selectcolor="#3C3C3C", activebackground=self.bg,
                 activeforeground=self.fg,
             )
             rb.pack(anchor=tk.W, pady=1)
+            self._engine_rbs.append(rb)
 
         # Separator
-        tk.Frame(self.container, height=1, bg="#555555").pack(
-            fill=tk.X, pady=8
-        )
+        tk.Frame(self.container, height=1, bg="#555555").pack(fill=tk.X, pady=6)
 
         # Model selection
-        tk.Label(
-            self.container, text="Качество (размер модели):",
+        device = detect_device()
+        recommended = get_recommended_model(device)
+
+        self._lbl_quality = tk.Label(
+            self.container, text=self._t_quality_title(),
             font=("Segoe UI", 10, "bold"), fg=self.fg, bg=self.bg,
-        ).pack(anchor=tk.W, pady=(0, 4))
+        )
+        self._lbl_quality.pack(anchor=tk.W, pady=(0, 4))
 
-        self.quality_var = tk.StringVar(value="standard")
+        # Device info
+        dev_text = f"{'Device' if self._lang == 'en' else 'Устройство'}: {device.upper()}"
+        if device == "cuda":
+            dev_text += f" | {'Recommended' if self._lang == 'en' else 'Рекомендация'}: {recommended}"
+        tk.Label(
+            self.container, text=dev_text,
+            font=("Segoe UI", 8), fg="#888888", bg=self.bg,
+        ).pack(anchor=tk.W, pady=(0, 6))
 
-        for key, (model, desc) in PRESETS.items():
-            suffix = " ★" if model == recommended else ""
+        self.quality_var = tk.StringVar(value=recommended)
+        self._model_rbs = []
+        for model, size_mb in PRESETS:
+            star = " ★" if model == recommended else ""
+            label = f"{model}  (~{size_mb} MB){star}"
             rb = tk.Radiobutton(
-                self.container,
-                text=f"{desc}{suffix}",
-                variable=self.quality_var, value=key,
+                self.container, text=label,
+                variable=self.quality_var, value=model,
                 font=("Segoe UI", 9), fg=self.fg, bg=self.bg,
                 selectcolor="#3C3C3C", activebackground=self.bg,
                 activeforeground=self.fg,
             )
             rb.pack(anchor=tk.W, pady=1)
+            self._model_rbs.append(rb)
 
         # Next button
-        tk.Button(
-            self.container, text="Далее →", font=("Segoe UI", 11),
+        self._btn_next = tk.Button(
+            self.container,
+            text="Next →" if self._lang == "en" else "Далее →",
+            font=("Segoe UI", 11),
             bg="#3C6E3C", fg=self.fg, relief=tk.FLAT,
             activebackground="#4A8A4A", cursor="hand2",
             command=self._on_step1_next,
-        ).pack(anchor=tk.E, pady=(12, 0))
+        )
+        self._btn_next.pack(anchor=tk.E, pady=(10, 0))
+
+    def _t_engine_title(self):
+        return "Engine:" if self._lang == "en" else "Движок:"
+
+    def _t_quality_title(self):
+        return "Model quality (size):" if self._lang == "en" else "Качество (размер модели):"
+
+    def _on_lang_change(self):
+        """Rebuild step 1 with new language."""
+        self._lang = self.ui_lang_var.get()
+        set_language(self._lang)
+        self.settings.set("ui_language", self._lang)
+        self.settings.save()
+        self._show_step_1()
 
     def _on_step1_next(self):
-        quality = self.quality_var.get()
-        model_name = PRESETS[quality][0]
+        model_name = self.quality_var.get()
         engine = self.engine_var.get()
-        # Save UI language
-        lang_name = self.ui_lang_var.get()
-        ui_lang = "en" if lang_name == "English" else "ru"
-        self.settings.set("ui_language", ui_lang)
         self.settings.set("model", model_name)
         self.settings.set("engine", engine)
+        self.settings.set("ui_language", self._lang)
         self.settings.save()
-        from core.i18n import set_language
-        set_language(ui_lang)
         self._show_step_2(model_name)
 
-    # --- Step 2: Download model ---
+    # ---- Step 2: Download model ----
 
     def _show_step_2(self, model_name: str):
         self._clear()
 
+        title = f"Downloading model «{model_name}»..." if self._lang == "en" \
+            else f"Загрузка модели «{model_name}»..."
         tk.Label(
-            self.container,
-            text=f"Загрузка модели «{model_name}»...",
+            self.container, text=title,
             font=("Segoe UI", 14, "bold"), fg=self.fg, bg=self.bg,
         ).pack(anchor=tk.W, pady=(0, 8))
 
@@ -178,9 +207,9 @@ class FirstRunWizard:
         from gui.download_window import MODEL_BYTES, _get_cache_size
 
         size = MODEL_SIZES.get(model_name, "?")
+        info = f"{'Size' if self._lang == 'en' else 'Размер'}: {size}"
         tk.Label(
-            self.container,
-            text=f"Размер: {size}. Скачивание с Hugging Face...",
+            self.container, text=info,
             font=("Segoe UI", 9), fg="#AAAAAA", bg=self.bg,
         ).pack(anchor=tk.W, pady=(0, 12))
 
@@ -196,18 +225,14 @@ class FirstRunWizard:
         )
         self.lbl_dl_status.pack(anchor=tk.W)
 
-        # Poll download progress
         self._dl_model = model_name
         self._dl_expected = MODEL_BYTES.get(model_name, 100 * 1024 * 1024)
         self._dl_polling = True
         self._dl_tick = 0
         self._poll_download()
-
-        # Load model in background
         self._load_model_bg(model_name)
 
     def _poll_download(self):
-        """Poll cache folder size every 300ms + animate."""
         if not self._dl_polling:
             return
         self._dl_tick += 1
@@ -220,8 +245,9 @@ class FirstRunWizard:
         pct = min(95, current / self._dl_expected * 100) if self._dl_expected else 0
 
         self.progress_var.set(pct)
+        dl_word = "Downloading" if self._lang == "en" else "Скачивание"
         self.lbl_dl_status.configure(
-            text=f"Скачивание{dots}  {mb:.0f} / {mb_total:.0f} MB  ({pct:.0f}%)")
+            text=f"{dl_word}{dots}  {mb:.0f} / {mb_total:.0f} MB  ({pct:.0f}%)")
 
         self.win.after(300, self._poll_download)
 
@@ -243,39 +269,51 @@ class FirstRunWizard:
     def _on_model_loaded(self):
         self._dl_polling = False
         self.progress_var.set(100)
-        self.lbl_dl_status.configure(text="Модель загружена!", fg="#44FF44")
-        self.win.after(500, self._show_step_3)
+        done = "Model loaded!" if self._lang == "en" else "Модель загружена!"
+        self.lbl_dl_status.configure(text=done, fg="#44FF44")
+
+        # Show "Next" button
+        next_text = "Next →" if self._lang == "en" else "Далее →"
+        tk.Button(
+            self.container, text=next_text, font=("Segoe UI", 11),
+            bg="#3C6E3C", fg=self.fg, relief=tk.FLAT,
+            activebackground="#4A8A4A", cursor="hand2",
+            command=self._show_step_3,
+        ).pack(anchor=tk.E, pady=(12, 0))
 
     def _on_model_error(self, error: str):
         self._dl_polling = False
-        self.lbl_dl_status.configure(
-            text=f"Ошибка: {error}", fg="#FF6666"
-        )
+        err_text = f"Error: {error}" if self._lang == "en" else f"Ошибка: {error}"
+        self.lbl_dl_status.configure(text=err_text, fg="#FF6666")
+
+        skip_text = "Skip →" if self._lang == "en" else "Пропустить →"
         tk.Button(
-            self.container, text="Пропустить →", font=("Segoe UI", 10),
+            self.container, text=skip_text, font=("Segoe UI", 10),
             bg="#5C3030", fg=self.fg, relief=tk.FLAT,
             command=self._show_step_3,
         ).pack(anchor=tk.E, pady=(10, 0))
 
-    # --- Step 3: Mic test ---
+    # ---- Step 3: Mic test ----
 
     def _show_step_3(self):
         self._clear()
 
+        title = "Microphone test" if self._lang == "en" else "Тест микрофона"
         tk.Label(
-            self.container,
-            text="Тест микрофона",
+            self.container, text=title,
             font=("Segoe UI", 14, "bold"), fg=self.fg, bg=self.bg,
         ).pack(anchor=tk.W, pady=(0, 8))
 
+        hint = "Press and hold the button, say something:" if self._lang == "en" \
+            else "Нажмите кнопку и скажите что-нибудь:"
         tk.Label(
-            self.container,
-            text="Нажмите кнопку и скажите что-нибудь:",
+            self.container, text=hint,
             font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg,
         ).pack(anchor=tk.W, pady=(0, 12))
 
+        btn_text = "Hold to test" if self._lang == "en" else "Удерживайте для теста"
         self.btn_test = tk.Button(
-            self.container, text="Удерживайте для теста",
+            self.container, text=btn_text,
             font=("Segoe UI", 11), bg="#3C3C3C", fg=self.fg,
             relief=tk.FLAT, cursor="hand2",
         )
@@ -292,40 +330,44 @@ class FirstRunWizard:
 
         self._recorder = AudioRecorder()
 
-        # Skip / Done
+        # Buttons
         btn_frame = tk.Frame(self.container, bg=self.bg)
         btn_frame.pack(fill=tk.X)
 
+        done_text = "Done!" if self._lang == "en" else "Готово!"
         tk.Button(
-            btn_frame, text="Готово!", font=("Segoe UI", 11),
+            btn_frame, text=done_text, font=("Segoe UI", 11),
             bg="#3C6E3C", fg=self.fg, relief=tk.FLAT,
             activebackground="#4A8A4A", cursor="hand2",
             command=self._finish,
         ).pack(side=tk.RIGHT)
 
+        skip_text = "Skip" if self._lang == "en" else "Пропустить"
         tk.Button(
-            btn_frame, text="Пропустить", font=("Segoe UI", 10),
+            btn_frame, text=skip_text, font=("Segoe UI", 10),
             bg="#3C3C3C", fg="#888888", relief=tk.FLAT,
             command=self._finish,
         ).pack(side=tk.RIGHT, padx=(0, 8))
 
     def _test_start(self, event):
-        self.btn_test.configure(text="Запись...", bg="#5C2020")
+        rec_text = "Recording..." if self._lang == "en" else "Запись..."
+        self.btn_test.configure(text=rec_text, bg="#5C2020")
         self._recorder.start()
 
     def _test_stop(self, event):
-        self.btn_test.configure(text="Удерживайте для теста", bg="#3C3C3C")
+        btn_text = "Hold to test" if self._lang == "en" else "Удерживайте для теста"
+        self.btn_test.configure(text=btn_text, bg="#3C3C3C")
         audio = self._recorder.stop()
         duration = len(audio) / 16000
 
         if duration < 0.5:
-            self.lbl_test_result.configure(
-                text="Слишком короткая запись. Попробуйте ещё раз.",
-                fg="#FF6666",
-            )
+            msg = "Too short. Try again." if self._lang == "en" \
+                else "Слишком короткая запись. Попробуйте ещё раз."
+            self.lbl_test_result.configure(text=msg, fg="#FF6666")
             return
 
-        self.lbl_test_result.configure(text="Распознаю...", fg="#888888")
+        proc_text = "Recognizing..." if self._lang == "en" else "Распознаю..."
+        self.lbl_test_result.configure(text=proc_text, fg="#888888")
 
         def transcribe():
             try:
@@ -342,16 +384,17 @@ class FirstRunWizard:
                     self.win.after(0, self.lbl_test_result.configure,
                                    {"text": text, "fg": self.fg})
                 else:
+                    msg = "No speech detected" if self._lang == "en" \
+                        else "Речь не распознана"
                     self.win.after(0, self.lbl_test_result.configure,
-                                   {"text": "Речь не распознана", "fg": "#FF6666"})
+                                   {"text": msg, "fg": "#FF6666"})
             except Exception as e:
                 self.win.after(0, self.lbl_test_result.configure,
-                               {"text": f"Ошибка: {e}", "fg": "#FF6666"})
+                               {"text": f"Error: {e}", "fg": "#FF6666"})
 
         threading.Thread(target=transcribe, daemon=True).start()
 
     def _finish(self):
-        hotkey = self.settings.get("hotkey")
         self.win.destroy()
         if self.on_complete:
             self.on_complete()
