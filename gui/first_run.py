@@ -358,7 +358,7 @@ class FirstRunWizard:
         def load():
             try:
                 engine = self.settings.get("engine")
-                device = detect_device()
+                device = self.settings.get("device") or "cpu"
                 from core.recognizer import load_model
                 from core.gpu_detector import get_compute_type
                 compute_type = get_compute_type(device)
@@ -509,7 +509,7 @@ class FirstRunWizard:
             try:
                 engine = self.settings.get("engine")
                 model_name = self.settings.get("model")
-                device = detect_device()
+                device = self.settings.get("device") or "cpu"
                 from core.recognizer import load_model, create_recognizer
                 from core.gpu_detector import get_compute_type
                 compute_type = get_compute_type(device)
