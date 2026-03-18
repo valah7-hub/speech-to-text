@@ -49,9 +49,14 @@ def detect_device(verbose: bool = False) -> str:
     # Fallback: check nvidia-smi (works even without torch/ctranslate2 CUDA)
     try:
         import subprocess
+        # Hide console window on Windows
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0  # SW_HIDE
         r = subprocess.run(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=5,
+            startupinfo=si,
         )
         if r.returncode == 0 and r.stdout.strip():
             _cached_device = "cuda"
