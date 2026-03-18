@@ -146,6 +146,28 @@ class SettingsWindow:
         self.autostart_var = tk.BooleanVar(value=is_autostart_enabled())
         self._row_check(m, "Запускать с Windows", self.autostart_var, "autostart")
 
+        # Update section
+        sep2 = tk.Frame(m, height=1, bg="#333333")
+        sep2.pack(fill=tk.X, pady=6)
+
+        upd_row = tk.Frame(m, bg=ROW_BG, padx=8, pady=5)
+        upd_row.pack(fill=tk.X, pady=2)
+
+        from core.updater import get_current_version
+        tk.Label(upd_row, text=f"Версия: {get_current_version()}",
+                 font=("Segoe UI", 9), fg=FG2, bg=ROW_BG
+                 ).pack(side=tk.LEFT)
+
+        self._upd_btn = tk.Button(
+            upd_row, text="Проверить обновления", font=("Segoe UI", 9),
+            bg="#2A4A5A", fg=FG, relief=tk.FLAT, padx=8,
+            cursor="hand2", command=self._check_update)
+        self._upd_btn.pack(side=tk.RIGHT)
+
+        self._upd_label = tk.Label(upd_row, text="", font=("Segoe UI", 8),
+                                    fg=FG2, bg=ROW_BG)
+        self._upd_label.pack(side=tk.RIGHT, padx=(0, 6))
+
         # Footer
         tk.Label(m, text="🔒 Локально • История: 20", font=("Segoe UI", 8),
                  fg=FG2, bg=BG).pack(anchor=tk.W, pady=(6, 4))
@@ -245,6 +267,54 @@ class SettingsWindow:
         if self.history_manager:
             from gui.history_window import HistoryWindow
             HistoryWindow(self.win, self.history_manager)
+
+    def _check_update(self):
+        self._upd_btn.configure(state=tk.DISABLED, text="Проверка...")
+        self._upd_label.configure(text="", fg=FG2)
+
+        def check():
+            from core.updater import check_update
+            result = check_update()
+            self.win.after(0, self._on_update_check, result)
+
+        import threading
+        threading.Thread(target=check, daemon=True).start()
+
+    def _on_update_check(self, result):
+        if result:
+            ver = result["version"]
+            self._upd_label.configure(
+                text=f"Доступна v{ver}", fg="#55BB55")
+            self._upd_btn.configure(
+                state=tk.NORMAL, text="Обновить",
+                bg="#2D6A2D",
+                command=lambda: self._do_update(result["url"]))
+        else:
+            self._upd_label.configure(
+                text="Обновлений нет", fg=FG2)
+            self._upd_btn.configure(
+                state=tk.NORMAL, text="Проверить обновления",
+                bg="#2A4A5A")
+
+    def _do_update(self, url):
+        self._upd_btn.configure(state=tk.DISABLED, text="Обновление...")
+        self._upd_label.configure(text="Скачивание...", fg="#CCAA44")
+
+        def update():
+            from core.updater import download_and_apply
+            def progress(msg):
+                self.win.after(0, self._upd_label.configure,
+                               {"text": msg})
+            ok = download_and_apply(url, on_progress=progress)
+            if ok:
+                self.win.after(0, self._upd_btn.configure,
+                               {"text": "Перезапустите", "state": tk.DISABLED})
+            else:
+                self.win.after(0, self._upd_btn.configure,
+                               {"text": "Ошибка", "state": tk.NORMAL})
+
+        import threading
+        threading.Thread(target=update, daemon=True).start()
 
     def _capture_hk(self):
         from core.hotkey_manager import HotkeyManager
