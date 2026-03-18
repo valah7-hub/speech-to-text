@@ -20,8 +20,16 @@ except Exception:
     except Exception:
         pass
 
-# Suppress HuggingFace symlink warning on Windows
+# Suppress HuggingFace warnings on Windows
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+os.environ["HF_HUB_DISABLE_EXPERIMENTAL_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_XET_WARNING"] = "1"
+
+# Suppress "unauthenticated requests" warning
+import warnings
+warnings.filterwarnings("ignore", message=".*unauthenticated.*")
+warnings.filterwarnings("ignore", message=".*hf_xet.*")
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(__file__))

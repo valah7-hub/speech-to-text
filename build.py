@@ -71,7 +71,7 @@ def main():
         sys.executable, "-m", "PyInstaller",
         "--name", NAME,
         "--onedir",            # folder mode (faster startup than --onefile)
-        # "--windowed",          # no console window (disabled for debug)
+        "--windowed",          # no console window
         "--noconfirm",         # overwrite without asking
         "--clean",             # clean cache
         # Icon (if exists)
