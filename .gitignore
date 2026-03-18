@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.lock
+settings.json
+history.json
+replacements.json
+vocabulary.txt
+.first_run_done
+dist/
+build/
+*.spec
+*.exe
+error.log

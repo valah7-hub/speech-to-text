@@ -1,0 +1,12 @@
+openai-whisper
+faster-whisper
+sounddevice
+numpy
+pyperclip
+pyautogui
+pywin32
+keyboard
+pystray
+Pillow
+whisperx
+pydub
