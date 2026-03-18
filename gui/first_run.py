@@ -44,7 +44,7 @@ class FirstRunWizard:
         self.win.title("Speech-to-Text")
         self.win.attributes("-topmost", True)
         self.win.resizable(False, False)
-        self.win.geometry("500x580")
+        self.win.geometry("520x620")
         self.win.protocol("WM_DELETE_WINDOW", self._skip)
 
         self.bg = "#2B2B2B"
@@ -99,33 +99,22 @@ class FirstRunWizard:
         )
         self._lbl_engine.pack(anchor=tk.W, pady=(4, 4))
 
-        # Show all known engines, mark installed ones
-        ENGINE_LABELS = {
-            "faster-whisper": ("Faster-Whisper", "fast, recommended" if self._lang == "en" else "быстрый, рекомендуется"),
-            "whisper": ("Whisper", "original OpenAI" if self._lang == "en" else "оригинальный от OpenAI"),
-        }
-        try:
-            installed = get_installed_engines()
-        except Exception:
-            installed = {"faster-whisper": True, "whisper": False}
-
+        # Show engines — both always available
+        ENGINE_LIST = [
+            ("faster-whisper",
+             "Faster-Whisper — " + ("fast, recommended" if self._lang == "en" else "быстрый, рекомендуется")),
+            ("whisper",
+             "Whisper — " + ("original by OpenAI" if self._lang == "en" else "оригинальный от OpenAI")),
+        ]
         self.engine_var = tk.StringVar(value="faster-whisper")
-        self._engine_rbs = []
-        for key, (name, desc) in ENGINE_LABELS.items():
-            is_ok = installed.get(key, False)
-            mark = " ✓" if is_ok else (" ✗ " + ("not installed" if self._lang == "en" else "не установлен"))
-            label = f"{name} — {desc}{mark}"
-            rb = tk.Radiobutton(
+        for key, label in ENGINE_LIST:
+            tk.Radiobutton(
                 self.container, text=label,
                 variable=self.engine_var, value=key,
-                font=("Segoe UI", 9), fg=self.fg if is_ok else "#666666",
-                bg=self.bg,
+                font=("Segoe UI", 9), fg=self.fg, bg=self.bg,
                 selectcolor="#3C3C3C", activebackground=self.bg,
                 activeforeground=self.fg,
-                state=tk.NORMAL if is_ok else tk.DISABLED,
-            )
-            rb.pack(anchor=tk.W, pady=1)
-            self._engine_rbs.append(rb)
+            ).pack(anchor=tk.W, pady=1)
 
         # Separator
         tk.Frame(self.container, height=1, bg="#555555").pack(fill=tk.X, pady=6)
@@ -149,32 +138,38 @@ class FirstRunWizard:
             font=("Segoe UI", 8), fg="#888888", bg=self.bg,
         ).pack(anchor=tk.W, pady=(0, 6))
 
+        # Hint about model quality
+        hint = ("Larger model = better quality, but slower and more disk space"
+                if self._lang == "en"
+                else "Чем больше модель — тем лучше качество, но медленнее и больше места на диске")
+        tk.Label(
+            self.container, text=hint,
+            font=("Segoe UI", 8), fg="#999999", bg=self.bg,
+        ).pack(anchor=tk.W, pady=(0, 4))
+
         self.quality_var = tk.StringVar(value=recommended)
-        self._model_rbs = []
         for model, size_mb in PRESETS:
             star = " ★" if model == recommended else ""
             label = f"{model}  (~{size_mb} MB){star}"
-            rb = tk.Radiobutton(
+            tk.Radiobutton(
                 self.container, text=label,
                 variable=self.quality_var, value=model,
                 font=("Segoe UI", 9), fg=self.fg, bg=self.bg,
                 selectcolor="#3C3C3C", activebackground=self.bg,
                 activeforeground=self.fg,
-            )
-            rb.pack(anchor=tk.W, pady=1)
-            self._model_rbs.append(rb)
+            ).pack(anchor=tk.W, pady=1)
 
-        # Next button — big and visible
+        # Next button — full width, clearly visible
         self._btn_next = tk.Button(
             self.container,
-            text="  Next →  " if self._lang == "en" else "  Далее →  ",
-            font=("Segoe UI", 12, "bold"),
+            text="Next →" if self._lang == "en" else "Далее →",
+            font=("Segoe UI", 13, "bold"),
             bg="#3C6E3C", fg="white", relief=tk.FLAT,
             activebackground="#4A8A4A", cursor="hand2",
-            padx=24, pady=6,
+            pady=8,
             command=self._on_step1_next,
         )
-        self._btn_next.pack(anchor=tk.E, pady=(14, 0))
+        self._btn_next.pack(fill=tk.X, pady=(14, 0))
 
     def _t_engine_title(self):
         return "Engine:" if self._lang == "en" else "Движок:"
@@ -280,15 +275,15 @@ class FirstRunWizard:
         done = "Model loaded!" if self._lang == "en" else "Модель загружена!"
         self.lbl_dl_status.configure(text=done, fg="#44FF44")
 
-        # Show "Next" button — big and visible
-        next_text = "  Next →  " if self._lang == "en" else "  Далее →  "
+        # Show "Next" button — full width
+        next_text = "Далее →" if self._lang != "en" else "Next →"
         tk.Button(
-            self.container, text=next_text, font=("Segoe UI", 12, "bold"),
+            self.container, text=next_text, font=("Segoe UI", 13, "bold"),
             bg="#3C6E3C", fg="white", relief=tk.FLAT,
             activebackground="#4A8A4A", cursor="hand2",
-            padx=24, pady=6,
+            pady=8,
             command=self._show_step_3,
-        ).pack(anchor=tk.E, pady=(14, 0))
+        ).pack(fill=tk.X, pady=(14, 0))
 
     def _on_model_error(self, error: str):
         self._dl_polling = False
