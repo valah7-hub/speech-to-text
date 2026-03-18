@@ -89,9 +89,9 @@ class App:
 
         self.vocabulary = load_vocabulary()
 
-        # Model
+        # Model (loaded after first-run wizard or immediately if not first run)
         self.model_manager = ModelManager()
-        self._load_current_model()
+        self._model_loaded = False
 
         # Text processing & history
         self.text_processor = TextProcessor(self.settings)
@@ -541,11 +541,12 @@ class App:
                     f.write("done")
                 self.settings.load()
                 self._load_current_model()
-                self._register_hotkey()  # Register AFTER wizard
+                self._register_hotkey()
 
             FirstRunWizard(self.root, self.settings, on_complete=on_complete)
         else:
-            # No wizard needed — register hotkey immediately
+            # Not first run — load model and register hotkey
+            self._load_current_model()
             self._register_hotkey()
 
     def run(self):
