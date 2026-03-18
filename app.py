@@ -116,15 +116,12 @@ class App:
             on_left_click=lambda e: self._on_settings(),
         )
 
-        # Global hotkey
+        # Global hotkey (registered after first-run wizard completes)
         self.hotkey = HotkeyManager(
             on_press=self._on_hotkey_press,
             on_release=self._on_hotkey_release,
         )
-        combo = self.settings.get("hotkey")
-        if combo:
-            self.hotkey.register(combo)
-            print(f"Hotkey: {combo}")
+        self._hotkey_registered = False
 
         # System tray
         self.tray = TrayIcon(
@@ -515,6 +512,16 @@ class App:
 
     # === First run ===
 
+    def _register_hotkey(self):
+        """Register global hotkey if not already registered."""
+        if self._hotkey_registered:
+            return
+        combo = self.settings.get("hotkey")
+        if combo:
+            self.hotkey.register(combo)
+            self._hotkey_registered = True
+            print(f"Hotkey: {combo}")
+
     def _check_first_run(self):
         marker = os.path.join(os.path.dirname(self.settings.path),
                               ".first_run_done")
@@ -526,8 +533,12 @@ class App:
                     f.write("done")
                 self.settings.load()
                 self._load_current_model()
+                self._register_hotkey()  # Register AFTER wizard
 
             FirstRunWizard(self.root, self.settings, on_complete=on_complete)
+        else:
+            # No wizard needed — register hotkey immediately
+            self._register_hotkey()
 
     def run(self):
         print(f"Ready: {self.settings.get('engine')} / "

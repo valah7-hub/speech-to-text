@@ -230,9 +230,21 @@ class FirstRunWizard:
 
         self._dl_model = model_name
         self._dl_expected = MODEL_BYTES.get(model_name, 100 * 1024 * 1024)
-        self._dl_polling = True
-        self._dl_tick = 0
-        self._poll_download()
+        self._dl_polling = False
+
+        # Check if model is already cached
+        current = _get_cache_size(model_name)
+        if current > self._dl_expected * 0.8:
+            # Model already downloaded
+            already = "Model already downloaded!" if self._lang == "en" \
+                else "Модель уже скачана!"
+            self.progress_var.set(100)
+            self.lbl_dl_status.configure(text=already, fg="#44FF44")
+        else:
+            self._dl_polling = True
+            self._dl_tick = 0
+            self._poll_download()
+
         self._load_model_bg(model_name)
 
     def _poll_download(self):
