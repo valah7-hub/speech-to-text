@@ -27,51 +27,47 @@
 ### Требования
 
 - **Windows 10/11**
-- **Python 3.10+**
+- **Python 3.10+** ([скачать](https://python.org/downloads) — при установке отметить "Add to PATH")
 - **NVIDIA GPU** (опционально, для ускорения)
 
-### Шаг 1: Клонировать репозиторий
+### Быстрая установка (рекомендуется)
 
 ```bash
 git clone https://github.com/valah7-hub/speech-to-text.git
 cd speech-to-text
+install.bat
 ```
 
-### Шаг 2: Установить зависимости
+Скрипт `install.bat` автоматически:
+1. Проверит наличие Python
+2. Установит все зависимости (~50 MB с PyPI)
+3. Установит движок Faster-Whisper (~20 MB с PyPI)
+4. Предложит установить GPU-ускорение (~2.5 GB, опционально)
+
+### Запуск
+
+- **Без консольного окна:** дважды кликните `start.vbs`
+- **С консолью (для отладки):** `python app.py`
+
+### Что скачивается и откуда
+
+| Что | Откуда | Размер | Когда |
+|-----|--------|--------|-------|
+| Python-пакеты | PyPI (pypi.org) | ~50 MB | При установке |
+| Faster-Whisper | PyPI | ~20 MB | При установке |
+| PyTorch + CUDA | pytorch.org | ~2.5 GB | При установке (опционально) |
+| Модель Whisper | Hugging Face (huggingface.co) | 75 MB — 3 GB | При первом запуске |
+
+Все источники — крупные стабильные платформы. Адреса не меняются.
+
+### Ручная установка
 
 ```bash
 pip install -r requirements.txt
-```
-
-### Шаг 3: Установить движок распознавания
-
-**Faster-Whisper (рекомендуется):**
-```bash
 pip install faster-whisper
-```
-
-**OpenAI Whisper (опционально):**
-```bash
-pip install openai-whisper
-```
-
-### Шаг 4: GPU-ускорение (опционально)
-
-Если у вас NVIDIA видеокарта, установите PyTorch с CUDA:
-
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu126
-```
-
-> Без этого шага приложение работает на CPU (медленнее, но работает).
-
-### Шаг 5: Запуск
-
-```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu126  # GPU
 python app.py
 ```
-
-При первом запуске откроется мастер настройки — выберите движок, модель и качество. Модель скачается автоматически.
 
 ---
 
