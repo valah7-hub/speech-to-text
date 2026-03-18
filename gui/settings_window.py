@@ -310,17 +310,27 @@ class SettingsWindow:
                 break
         if not best:
             return
-        cache = os.path.expanduser("~/.cache/huggingface/hub")
         deleted = []
         for name, mb in dl:
             if name != best:
-                p = os.path.join(cache, f"models--Systran--faster-whisper-{name}")
-                if os.path.exists(p):
-                    shutil.rmtree(p, ignore_errors=True)
-                    deleted.append(name)
+                self._remove_model_files(name)
+                deleted.append(name)
         if deleted:
             print(f"Deleted models: {', '.join(deleted)}, kept: {best}")
         self._build_models(get_downloaded_models())
+
+    def _remove_model_files(self, name):
+        """Delete model from local models/ and HF cache."""
+        from core.gpu_detector import get_models_dir
+        # Local
+        local = os.path.join(get_models_dir(), f"faster-whisper-{name}")
+        if os.path.exists(local):
+            shutil.rmtree(local, ignore_errors=True)
+        # HF cache
+        hf = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"),
+                          f"models--Systran--faster-whisper-{name}")
+        if os.path.exists(hf):
+            shutil.rmtree(hf, ignore_errors=True)
 
     def _del_model(self, name):
         from tkinter import messagebox
@@ -328,10 +338,7 @@ class SettingsWindow:
                                     t("delete_model_confirm", name=name),
                                     parent=self.win):
             return
-        cache = os.path.expanduser("~/.cache/huggingface/hub")
-        p = os.path.join(cache, f"models--Systran--faster-whisper-{name}")
-        if os.path.exists(p):
-            shutil.rmtree(p, ignore_errors=True)
+        self._remove_model_files(name)
         self._build_models(get_downloaded_models())
 
     def _history(self):

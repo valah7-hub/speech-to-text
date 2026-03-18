@@ -120,10 +120,13 @@ def load_model(engine: str, model_name: str, device: str,
         return whisper.load_model(model_name, device=device)
     elif engine == "faster-whisper":
         from faster_whisper import WhisperModel
+        from core.gpu_detector import get_models_dir
         if compute_type is None:
             compute_type = "float16" if device == "cuda" else "int8"
+        models_dir = get_models_dir()
         return WhisperModel(model_name, device=device,
-                            compute_type=compute_type)
+                            compute_type=compute_type,
+                            download_root=models_dir)
     elif engine == "whisperx":
         import whisperx
         if compute_type is None:

@@ -1,6 +1,18 @@
 """GPU detection, model recommendation, and model cache info."""
 
 import os
+import sys
+
+def get_models_dir() -> str:
+    """Return path to models directory (next to exe or app.py)."""
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    d = os.path.join(base, "models")
+    os.makedirs(d, exist_ok=True)
+    return d
+
 
 # Cache result so we don't spam console
 _cached_device: str | None = None
@@ -88,27 +100,40 @@ MODEL_SIZES = {
 }
 
 
+def _dir_size_mb(path: str) -> int:
+    """Get folder size in MB."""
+    if not os.path.exists(path):
+        return 0
+    size = sum(
+        os.path.getsize(os.path.join(dp, f))
+        for dp, dn, fns in os.walk(path)
+        for f in fns
+    )
+    return size // (1024 * 1024)
+
+
 def get_downloaded_models() -> dict[str, int]:
     """Check which models are already downloaded.
 
+    Checks both local models/ folder and HuggingFace cache.
     Returns dict: model_name -> size_in_mb (0 if not downloaded).
     """
-    cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
+    models_dir = get_models_dir()
+    hf_cache = os.path.expanduser("~/.cache/huggingface/hub")
     downloaded = {}
 
     for model_name in MODEL_SIZES:
-        # Check faster-whisper cache
-        dir_name = f"models--Systran--faster-whisper-{model_name}"
-        path = os.path.join(cache_dir, dir_name)
-        if os.path.exists(path):
-            size = sum(
-                os.path.getsize(os.path.join(dp, f))
-                for dp, dn, fns in os.walk(path)
-                for f in fns
-            )
-            downloaded[model_name] = size // (1024 * 1024)
-        else:
-            downloaded[model_name] = 0
+        # Check local models/ folder first
+        local_path = os.path.join(models_dir, f"faster-whisper-{model_name}")
+        local_mb = _dir_size_mb(local_path)
+        if local_mb > 0:
+            downloaded[model_name] = local_mb
+            continue
+
+        # Fallback: check HuggingFace cache
+        hf_path = os.path.join(hf_cache, f"models--Systran--faster-whisper-{model_name}")
+        hf_mb = _dir_size_mb(hf_path)
+        downloaded[model_name] = hf_mb
 
     return downloaded
 
