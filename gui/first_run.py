@@ -302,6 +302,16 @@ class FirstRunWizard:
         err_text = f"Error: {error}" if self._lang == "en" else f"Ошибка: {error}"
         self.lbl_dl_status.configure(text=err_text, fg="#FF6666")
 
+        # Reassure user about partial downloads
+        resume_hint = ("Download will resume automatically next time — no need to re-download."
+                       if self._lang == "en"
+                       else "При следующем запуске скачивание продолжится с того места, где остановилось. Заново скачивать не придётся.")
+        tk.Label(
+            self.container, text=resume_hint,
+            font=("Segoe UI", 8), fg="#AAAAAA", bg=self.bg,
+            wraplength=440, justify=tk.LEFT,
+        ).pack(anchor=tk.W, pady=(6, 0))
+
         skip_text = "Skip →" if self._lang == "en" else "Пропустить →"
         tk.Button(
             self.container, text=skip_text, font=("Segoe UI", 10),
