@@ -44,7 +44,7 @@ class FirstRunWizard:
         self.win.title("Speech-to-Text")
         self.win.attributes("-topmost", True)
         self.win.resizable(False, False)
-        self.win.geometry("520x620")
+        self.win.geometry("540x640")
         self.win.protocol("WM_DELETE_WINDOW", self._skip)
 
         self.bg = "#2B2B2B"
@@ -139,9 +139,9 @@ class FirstRunWizard:
         ).pack(anchor=tk.W, pady=(0, 6))
 
         # Hint about model quality
-        hint = ("Larger model = better quality, but slower and more disk space"
+        hint = ("Larger = better quality, but slower"
                 if self._lang == "en"
-                else "Чем больше модель — тем лучше качество, но медленнее и больше места на диске")
+                else "Больше модель = лучше качество, но медленнее")
         tk.Label(
             self.container, text=hint,
             font=("Segoe UI", 8), fg="#999999", bg=self.bg,
@@ -190,16 +190,10 @@ class FirstRunWizard:
         engine = self.engine_var.get()
         self.settings.set("model", model_name)
         self.settings.set("engine", engine)
-        self.settings.set("device", "cpu")  # CPU by default
+        self.settings.set("device", "cpu")  # CPU by default — GPU offered later
         self.settings.set("ui_language", self._lang)
         self.settings.save()
-
-        # Check if NVIDIA GPU is available — offer GPU mode
-        has_gpu = self._check_nvidia()
-        if has_gpu:
-            self._show_gpu_offer(model_name)
-        else:
-            self._show_step_2(model_name)
+        self._show_step_2(model_name)
 
     def _check_nvidia(self) -> bool:
         """Check if NVIDIA GPU is present."""
@@ -216,7 +210,7 @@ class FirstRunWizard:
         except Exception:
             return False
 
-    def _show_gpu_offer(self, model_name):
+    def _show_gpu_offer(self):
         """Offer GPU acceleration if NVIDIA detected."""
         self._clear()
 
@@ -244,13 +238,16 @@ class FirstRunWizard:
             font=("Segoe UI", 11), fg=self.fg, bg=self.bg,
         ).pack(anchor=tk.W, pady=(0, 12))
 
-        desc = ("GPU acceleration makes recognition 3-5x faster.\n"
-                "Requires CUDA Toolkit installed on your system.\n\n"
-                "Use GPU?"
-                if self._lang == "en"
-                else "GPU ускоряет распознавание в 3-5 раз.\n"
-                     "Требуется установленный CUDA Toolkit.\n\n"
-                     "Использовать GPU?")
+        if self._lang == "en":
+            desc = ("GPU makes recognition 3-5x faster.\n\n"
+                    "Requires NVIDIA CUDA Toolkit (free).\n"
+                    "If not installed, the app will use CPU.\n\n"
+                    "You can change this later in Settings.")
+        else:
+            desc = ("GPU ускоряет распознавание в 3-5 раз.\n\n"
+                    "Требуется NVIDIA CUDA Toolkit (бесплатный).\n"
+                    "Если не установлен — будет работать на CPU.\n\n"
+                    "Можно изменить позже в Настройках.")
         tk.Label(
             self.container, text=desc,
             font=("Segoe UI", 10), fg="#AAAAAA", bg=self.bg,
@@ -267,23 +264,23 @@ class FirstRunWizard:
             font=("Segoe UI", 12, "bold"),
             bg="#3C6E3C", fg="white", relief=tk.FLAT,
             activebackground="#4A8A4A", cursor="hand2", pady=6,
-            command=lambda: self._set_device_and_continue("cuda", model_name),
+            command=lambda: self._set_device("cuda"),
         ).pack(fill=tk.X, pady=(0, 6))
 
         # No — CPU
-        no_text = "No, use CPU" if self._lang == "en" else "Нет, использовать CPU"
+        no_text = "No, use CPU (stable)" if self._lang == "en" else "Нет, использовать CPU (стабильно)"
         tk.Button(
             btn_frame, text=no_text,
             font=("Segoe UI", 10),
             bg="#3C3C3C", fg="#AAAAAA", relief=tk.FLAT,
             cursor="hand2", pady=4,
-            command=lambda: self._set_device_and_continue("cpu", model_name),
+            command=lambda: self._set_device("cpu"),
         ).pack(fill=tk.X)
 
-    def _set_device_and_continue(self, device, model_name):
+    def _set_device(self, device):
         self.settings.set("device", device)
         self.settings.save()
-        self._show_step_2(model_name)
+        self._done()
 
     # ---- Step 2: Download model ----
 
@@ -549,6 +546,13 @@ class FirstRunWizard:
         threading.Thread(target=transcribe, daemon=True).start()
 
     def _finish(self):
+        # After mic test — check for GPU
+        if self._check_nvidia():
+            self._show_gpu_offer()
+        else:
+            self._done()
+
+    def _done(self):
         self.win.destroy()
         if self.on_complete:
             self.on_complete()
