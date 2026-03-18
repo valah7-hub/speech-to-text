@@ -179,8 +179,12 @@ class StreamRecognizer:
         for phrase in hallucination_phrases:
             if phrase in t:
                 return True
-        # Very short repeated text (like "...")
-        if len(t) < 3:
+        # Dots, ellipsis, very short junk
+        if len(t) < 4:
+            return True
+        # Only dots, commas, spaces, dashes
+        cleaned = t.replace(".", "").replace(",", "").replace(" ", "").replace("-", "").replace("…", "").replace("?", "").replace("!", "")
+        if len(cleaned) < 2:
             return True
         return False
 
