@@ -124,9 +124,21 @@ def load_model(engine: str, model_name: str, device: str,
         if compute_type is None:
             compute_type = "float16" if device == "cuda" else "int8"
         models_dir = get_models_dir()
-        return WhisperModel(model_name, device=device,
-                            compute_type=compute_type,
-                            download_root=models_dir)
+        try:
+            return WhisperModel(model_name, device=device,
+                                compute_type=compute_type,
+                                download_root=models_dir)
+        except Exception as e:
+            err = str(e).lower()
+            # CUDA DLL missing — fallback to CPU
+            if device == "cuda" and ("cublas" in err or "cuda" in err
+                                      or ".dll" in err or "not found" in err):
+                print(f"CUDA error: {e}")
+                print("Falling back to CPU...")
+                return WhisperModel(model_name, device="cpu",
+                                    compute_type="int8",
+                                    download_root=models_dir)
+            raise
     elif engine == "whisperx":
         import whisperx
         if compute_type is None:
